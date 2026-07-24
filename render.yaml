@@ -1,0 +1,17 @@
+# Deploy to Render — gives you a free HTTPS domain, which OKX requires.
+# 1. Push this folder to a GitHub repo
+# 2. render.com -> New -> Blueprint -> select the repo
+# 3. Deploy. Endpoint = https://<service>.onrender.com/mcp
+services:
+  - type: web
+    name: cassandra-devils-advocate
+    runtime: docker
+    plan: free
+    # NOT /mcp — a bare GET there returns 406 by design (the MCP endpoint
+    # requires an SSE Accept header) and Render reads that as unhealthy.
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: XLAYER_RPC_URL
+        value: https://rpc.xlayer.tech

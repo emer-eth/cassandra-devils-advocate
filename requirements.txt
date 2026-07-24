@@ -1,0 +1,5 @@
+# Pinned to the majors this was verified against on 2026-07-24.
+# fastmcp 4.x has not shipped; do not let a deploy build silently jump majors.
+fastmcp>=3.4.4,<4
+httpx>=0.28,<0.29
+uvicorn>=0.30
