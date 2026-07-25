@@ -1059,7 +1059,11 @@ async def landing(request: Request) -> HTMLResponse:
 # reasoning engine behind a plain JSON route — no second implementation.
 
 _RATE: dict[str, list[float]] = {}
-RATE_LIMIT, RATE_WINDOW = 20, 60.0
+# Generous on purpose: the engine costs nothing per call (no model), so the only
+# thing worth protecting is upstream RPC quota. 20/min throttled legitimate use —
+# recording a demo takes dozens of retakes from one IP.
+RATE_LIMIT = int(os.getenv("DEMO_RATE_LIMIT", "60"))
+RATE_WINDOW = 60.0
 
 
 def _rate_limited(ip: str) -> bool:
