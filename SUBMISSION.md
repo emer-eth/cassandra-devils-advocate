@@ -1,8 +1,47 @@
 # Submission write-up
 
-Four lengths, because the form's fields are unknown — use whichever fits, they
-say the same thing at different resolutions. Then the video description and a
-copy-paste links block.
+**Use the intro below.** It assumes the reader has never heard of this and does
+not open with an argument about the marketplace — it just says what the thing is.
+The longer versions further down are there for a form field with room to spare.
+
+---
+
+## Intro — 99 words · use this one
+
+Cassandra is an AI agent that argues with you.
+
+Give it a plan — a trade, a token, a launch, a hire — and instead of helping you
+do it, it tries to talk you out of it. It finds the bias hiding in your own words
+and quotes them back to you, walks through how this actually fails, and checks
+any on-chain claim against the chain itself.
+
+And if your plan is genuinely sound, it says so and gets out of the way.
+
+Deterministic. No language model, so there is nothing to hallucinate.
+
+Try it, then argue back.
+
+---
+
+## Video description — short
+
+```
+Cassandra is an AI agent that argues with you.
+
+Give it a plan and instead of helping you do it, it tries to talk you out of
+it — finding the bias hiding in your own words, quoting them back, and
+checking any on-chain claim against the chain itself.
+
+And when your plan is genuinely sound, it says so and gets out of the way.
+
+No language model. Nothing to hallucinate.
+
+Try it yourself — the demo on the site is the real engine:
+https://cassandra-devils-advocate.vercel.app
+
+Source: https://github.com/emer-eth/cassandra-devils-advocate
+Listed on OKX.AI as ASP #9030. Decision hygiene, not financial advice.
+```
 
 ---
 
