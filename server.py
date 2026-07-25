@@ -44,6 +44,8 @@ from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 
+from landing import LANDING_HTML
+
 HTTP_TIMEOUT = 6.0      # market / sellability APIs
 RPC_TIMEOUT = 5.0       # a single RPC attempt, before failing over
 
@@ -1043,75 +1045,62 @@ def supported_chains() -> dict[str, Any]:
 # restarts the service over. This gives Render — and OKX — a plain 200.
 # ---------------------------------------------------------------------------
 
-LANDING = """<!doctype html>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cassandra — The Devil's Advocate</title>
-<style>
-  :root { --bg:#faf8f4; --fg:#1a1815; --dim:#6b6558; --rule:#ddd6c8; --acc:#8a6d2f; }
-  @media (prefers-color-scheme:dark) {
-    :root { --bg:#14120f; --fg:#ece7dd; --dim:#928b7c; --rule:#2e2a23; --acc:#c9a55c; }
-  }
-  * { box-sizing:border-box; }
-  body { margin:0; padding:12vh 6vw 8vh; background:var(--bg); color:var(--fg);
-         font:16px/1.65 Georgia,'Iowan Old Style',serif; max-width:46rem; }
-  h1 { font-size:clamp(1.9rem,5vw,2.6rem); font-weight:400; letter-spacing:-.02em; margin:0 0 .2rem; }
-  .sub { color:var(--acc); font-style:italic; margin:0 0 2.4rem; }
-  .lede { font-size:1.12rem; margin:0 0 2.4rem; }
-  h2 { font-size:.74rem; text-transform:uppercase; letter-spacing:.14em; color:var(--dim);
-       font-weight:600; font-family:system-ui,sans-serif; margin:2.6rem 0 .9rem;
-       padding-bottom:.5rem; border-bottom:1px solid var(--rule); }
-  code,pre { font-family:ui-monospace,'SF Mono',Menlo,monospace; font-size:.85rem; }
-  pre { background:color-mix(in srgb,var(--fg) 5%,transparent); border:1px solid var(--rule);
-        border-left:2px solid var(--acc); padding:.85rem 1rem; overflow-x:auto; }
-  table { border-collapse:collapse; width:100%; }
-  td { padding:.5rem .8rem .5rem 0; border-bottom:1px solid var(--rule); vertical-align:top; }
-  td:first-child { white-space:nowrap; color:var(--acc); }
-  td:last-child { color:var(--dim); font-size:.95rem; }
-  footer { margin-top:3.5rem; padding-top:1.2rem; border-top:1px solid var(--rule);
-           color:var(--dim); font-size:.85rem; font-style:italic; }
-</style>
-<h1>Cassandra</h1>
-<p class="sub">The Devil's Advocate — an A2MCP service on OKX.AI</p>
-<p class="lede">Every agent on the marketplace is built to say yes. Cassandra is built to
-say no. You give it a plan; it states your case better than you did, then takes it apart —
-naming the bias in your own wording and quoting it back, running a pre-mortem, checking any
-on-chain claim against the chain itself, telling you what would change its mind, and
-proposing the smallest reversible test. <strong>It concedes when your plan is sound.</strong></p>
-
-<h2>Tools</h2>
-<table>
-  <tr><td>challenge_plan</td><td>The full argument against your plan, with on-chain evidence</td></tr>
-  <tr><td>premortem</td><td>It's a year from now and this failed — why?</td></tr>
-  <tr><td>bias_check</td><td>Fast read on how you framed the decision</td></tr>
-  <tr><td>supported_chains</td><td>Where it can pull evidence from</td></tr>
-</table>
-
-<h2>Connect</h2>
-<pre>MCP endpoint   POST __ORIGIN__/mcp
-Transport      Streamable HTTP
-Health         GET  __ORIGIN__/health
-
-npx @modelcontextprotocol/inspector
-  -> Streamable HTTP -> __ORIGIN__/mcp</pre>
-<p style="color:var(--dim);font-size:.9rem">A bare browser request to <code>/mcp</code> returns
-<code>406</code> by design — MCP requires an SSE <code>Accept</code> header. That is the
-protocol working, not an error.</p>
-
-<h2>Why it can't hallucinate an objection</h2>
-<p>No LLM and no API key. Pattern analysis over your own phrasing, a structured pre-mortem
-library, and live chain data. Same plan in, same critique out, every time.</p>
-
-<footer>Named for the prophetess cursed to speak true and never be believed.<br>
-Decision hygiene, not financial advice.</footer>
-"""
-
-
 @mcp.custom_route("/", methods=["GET"])
 async def landing(request: Request) -> HTMLResponse:
     """A front door. Reviewers and judges paste the base URL into a browser;
     'Not Found' reads as a broken service even when /mcp is perfectly healthy."""
     origin = str(request.base_url).rstrip("/")
-    return HTMLResponse(LANDING.replace("__ORIGIN__", origin))
+    return HTMLResponse(LANDING_HTML.replace("__ORIGIN__", origin))
+
+
+# --- browser demo -----------------------------------------------------------
+# The landing page needs to call the engine from JavaScript, and /mcp cannot
+# serve that: MCP is POST + SSE with a session handshake. This is the same
+# reasoning engine behind a plain JSON route — no second implementation.
+
+_RATE: dict[str, list[float]] = {}
+RATE_LIMIT, RATE_WINDOW = 20, 60.0
+
+
+def _rate_limited(ip: str) -> bool:
+    now = time.time()
+    hits = [t for t in _RATE.get(ip, []) if now - t < RATE_WINDOW]
+    _RATE[ip] = hits + [now]
+    if len(_RATE) > 4000:                      # bound memory on a warm instance
+        for stale in [k for k, v in _RATE.items() if not v or now - v[-1] > RATE_WINDOW]:
+            _RATE.pop(stale, None)
+    return len(hits) >= RATE_LIMIT
+
+
+@mcp.custom_route("/api/challenge", methods=["POST"])
+async def api_challenge(request: Request) -> JSONResponse:
+    ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+          or (request.client.host if request.client else "unknown"))
+    if _rate_limited(ip):
+        return JSONResponse(
+            {"error": "That is a lot of plans in one minute. Give it a moment — "
+                      "or call the service properly over MCP, where there is no limit."},
+            status_code=429)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Send JSON: {\"plan\": \"...\"}"}, status_code=400)
+
+    plan = (body.get("plan") or "").strip()
+    token = (body.get("token_address") or "").strip() or None
+    chain = (body.get("chain") or "xlayer").strip() or "xlayer"
+    if not plan:
+        return JSONResponse({"error": "Give me a plan to argue against."}, status_code=400)
+
+    # The tool object wraps the function in some FastMCP versions; unwrap either way.
+    impl = getattr(challenge_plan, "fn", challenge_plan)
+    try:
+        return JSONResponse(impl(plan, token, chain))
+    except Exception as e:                     # never leak a stack trace to a judge
+        return JSONResponse(
+            {"error": f"The critique failed to run ({type(e).__name__}). The reasoning "
+                      f"engine is fine; this is usually a chain-data timeout — try again "
+                      f"without a token address."}, status_code=500)
 
 
 @mcp.custom_route("/health", methods=["GET"])

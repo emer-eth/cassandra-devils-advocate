@@ -53,12 +53,18 @@ challenge_plan(plan="I'll allocate 200 dollars I can afford to lose and exit if 
 ## Live endpoint
 
 ```
-MCP    https://cassandra-devils-advocate.vercel.app/mcp     (Streamable HTTP)
-Health https://cassandra-devils-advocate.vercel.app/health
+Site     https://cassandra-devils-advocate.vercel.app          interactive demo
+MCP      https://cassandra-devils-advocate.vercel.app/mcp      Streamable HTTP
+Health   https://cassandra-devils-advocate.vercel.app/health
+Demo API https://cassandra-devils-advocate.vercel.app/api/challenge   POST {"plan": "..."}
 ```
 
-A browser GET on `/mcp` answers `406` on purpose — MCP needs an SSE `Accept`
-header. That is the protocol working. Point a client at it instead:
+The site runs the real engine in the browser via `/api/challenge` — same code
+path as `/mcp`, rate limited to 20/min per IP.
+
+A browser GET on `/mcp` is refused on purpose: MCP is POST + SSE, so you get
+`405` on Vercel (stateless mode) or `406` against a stateful host. That is the
+protocol working. Point a client at it instead:
 
 ```bash
 python try_cassandra.py --url https://cassandra-devils-advocate.vercel.app/mcp
